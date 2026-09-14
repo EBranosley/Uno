@@ -1,3 +1,4 @@
+// Terminal grading v4 — triggers a fresh Pages publish
 (()=>{
   let labStep=0;
   let labDone=false;
