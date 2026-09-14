@@ -13,19 +13,57 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Inject grader script
+      - name: Update explanation flow
         shell: python
         run: |
           from pathlib import Path
           import re
+
+          g=Path('grader.js')
+          s=g.read_text()
+
+          # When a mixed-practice terminal task is completed, immediately show the detailed explanation.
+          s=s.replace(
+              "else paint('good','<b>✓ Correct — terminal task complete.</b> Now explain in your own words what happened and why. Your explanation will be compared with a detailed model explanation.');",
+              "else { paint('good','<b>✓ Correct — terminal task complete.</b> The detailed explanation is shown below.'); showLabExplanation(); }"
+          )
+
+          # Hide the learner explanation box and the old Check & continue button in mixed practice.
+          s=s.replace(
+              "const oldPractice=practice;\n  practice=function(){resetGrader();oldPractice();setTimeout(resetGrader,0)};",
+              "const oldPractice=practice;\n  practice=function(){resetGrader();oldPractice();setTimeout(()=>{resetGrader();const e=document.getElementById('explain');if(e)e.style.display='none';[...document.querySelectorAll('button')].forEach(b=>{if(b.textContent.trim()==='Check & continue')b.style.display='none'})},0)};"
+          )
+
+          # Replace the old self-explanation gate with automatic teaching after correctness.
+          s=re.sub(
+              r"  // Require the learner's explanation, then provide a full model explanation instead of immediately moving on\..*?window\.nextMixedLab=function\(\)\{labI\+\+;practice\(\)\};",
+              """  function showLabExplanation(){
+    const l=currentLab();
+    const m=document.getElementById('labmsg');
+    if(m)m.innerHTML=`<div class=\"notice\" style=\"line-height:1.65\"><b>Detailed explanation</b><p>${labDetail(l)}</p><p><b>Expected command sequence:</b> <code>${h(l[2])}</code></p><button class=\"btn primary\" onclick=\"nextMixedLab()\">Next hands-on task</button></div>`;
+  }
+  window.showLabExplanation=showLabExplanation;
+
+  finishLab=function(){
+    if(typeof page!=='undefined'&&page==='practice'&&!labDone){const m=document.getElementById('labmsg');if(m)m.innerHTML='<p style=\"color:var(--red)\"><b>Complete the terminal task correctly first.</b></p>';paint('bad','<b>✗ Terminal task incomplete.</b> Finish the required command sequence first.');return}
+    showLabExplanation();
+  };
+  window.finishLab=finishLab;
+  window.nextMixedLab=function(){labI++;practice()};""",
+              s,
+              flags=re.S
+          )
+
+          g.write_text(s)
+
           p=Path('index.html')
-          s=p.read_text()
-          new_tag='<script src="grader.js?v=6"></script>'
-          if re.search(r'<script src="grader\.js\?v=\d+"></script>', s):
-              s=re.sub(r'<script src="grader\.js\?v=\d+"></script>', new_tag, s)
-          elif new_tag not in s:
-              s=s.replace('</body>', new_tag+'\n</body>')
-          p.write_text(s)
+          html=p.read_text()
+          new_tag='<script src="grader.js?v=7"></script>'
+          if re.search(r'<script src="grader\.js\?v=\d+"></script>', html):
+              html=re.sub(r'<script src="grader\.js\?v=\d+"></script>', new_tag, html)
+          elif new_tag not in html:
+              html=html.replace('</body>', new_tag+'\n</body>')
+          p.write_text(html)
       - name: Commit patch if needed
         run: |
           if git diff --quiet; then
@@ -34,6 +72,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          git commit -m "[study-explanations] Load detailed explanation trainer"
+          git add grader.js index.html
+          git commit -m "[study-flow] Explain automatically after correct answer"
           git push
