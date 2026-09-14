@@ -186,7 +186,7 @@
         if(labStep>=exp.length){
           labDone=true;completeCurrentLab();
           if(page==='term') paint('good',`<b>✓ Correct — challenge complete.</b><br><br><b>Detailed explanation</b><br>${labDetail(currentLab())}<br><br><button onclick="nextTerminalChallenge()" style="padding:8px 10px;border-radius:9px;border:1px solid #2f6b50;background:#0f6b5a;color:#fff;font-weight:700">Next challenge</button>`);
-          else paint('good','<b>✓ Correct — terminal task complete.</b> Now explain in your own words what happened and why. Your explanation will be compared with a detailed model explanation.');
+          else { paint('good','<b>✓ Correct — terminal task complete.</b> The detailed explanation is shown below.'); showLabExplanation(); }
         } else paint('good',`<b>✓ Correct step.</b> ${labStep}/${exp.length} complete. Continue with the next command. Ask yourself what that command changed before moving on.`)
       }else{
         if(typeof S!=='undefined'&&S.mistakes){S.mistakes.push({q:'Terminal: '+currentLab()[1],a:cmd,correct:want,when:Date.now()});if(typeof save==='function')save();}
@@ -202,26 +202,21 @@
   window.runLine=runLine;
 
   const oldPractice=practice;
-  practice=function(){resetGrader();oldPractice();setTimeout(resetGrader,0)};
+  practice=function(){resetGrader();oldPractice();setTimeout(()=>{resetGrader();const e=document.getElementById('explain');if(e)e.style.display='none';[...document.querySelectorAll('button')].forEach(b=>{if(b.textContent.trim()==='Check & continue')b.style.display='none'})},0)};
 
-  // Require the learner's explanation, then provide a full model explanation instead of immediately moving on.
-  finishLab=function(){
-    if(typeof page!=='undefined'&&page==='practice'&&!labDone){const m=document.getElementById('labmsg');if(m)m.innerHTML='<p style="color:var(--red)"><b>Complete the terminal task correctly before continuing.</b></p>';paint('bad','<b>✗ Terminal task incomplete.</b> Finish the required command sequence first.');return}
-    const l=currentLab();
-    const box=document.getElementById('explain');
-    const e=box?box.value.trim():'';
-    if(e.length<12){const m=document.getElementById('labmsg');if(m)m.innerHTML='<p style="color:var(--amber)"><b>Explain what happened and why in at least a short sentence.</b> Describe what the key command or option actually did.</p>';return}
-    completeCurrentLab();
-    if(typeof S!=='undefined'){
-      S.labExplanations=S.labExplanations||{};
-      S.labExplanations['mixed-'+labI]=e;
-      if(typeof save==='function')save();
-    }
-    const m=document.getElementById('labmsg');
-    if(m)m.innerHTML=`<div class="notice" style="line-height:1.6"><b>Your explanation</b><p>${h(e)}</p><hr style="border:0;border-top:1px solid #31506d"><b>Detailed model explanation</b><p>${labDetail(l)}</p><p><b>Expected command sequence:</b> <code>${h(l[2])}</code></p><button class="btn primary" onclick="nextMixedLab()">Next hands-on task</button></div>`;
-  };
-  window.finishLab=finishLab;
-  window.nextMixedLab=function(){labI++;practice()};
+  function showLabExplanation(){
+  const l=currentLab();
+  const m=document.getElementById('labmsg');
+  if(m)m.innerHTML=`<div class="notice" style="line-height:1.65"><b>Detailed explanation</b><p>${labDetail(l)}</p><p><b>Expected command sequence:</b> <code>${h(l[2])}</code></p><button class="btn primary" onclick="nextMixedLab()">Next hands-on task</button></div>`;
+}
+window.showLabExplanation=showLabExplanation;
+
+finishLab=function(){
+  if(typeof page!=='undefined'&&page==='practice'&&!labDone){const m=document.getElementById('labmsg');if(m)m.innerHTML='<p style="color:var(--red)"><b>Complete the terminal task correctly first.</b></p>';paint('bad','<b>✗ Terminal task incomplete.</b> Finish the required command sequence first.');return}
+  showLabExplanation();
+};
+window.finishLab=finishLab;
+window.nextMixedLab=function(){labI++;practice()};
 
   // Replace terse multiple-choice feedback with a complete rationale, including why every distractor is wrong.
   answerQ=function(el,a){
